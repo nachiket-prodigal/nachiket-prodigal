@@ -437,6 +437,62 @@
   @media (max-width: 1100px) {
     .phases-grid { grid-template-columns: 1fr; }
   }
+
+  /* Help section */
+  details.help {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  details.help summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 14px 22px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-dim);
+    user-select: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.12s, color 0.12s;
+  }
+  details.help summary::-webkit-details-marker { display: none; }
+  details.help summary::before {
+    content: '▸';
+    font-size: 10px;
+    transition: transform 0.18s;
+    color: var(--text-faint);
+  }
+  details.help[open] summary::before { transform: rotate(90deg); }
+  details.help summary:hover { color: var(--text); }
+  details.help summary:hover::before { color: var(--accent); }
+  .help-body {
+    padding: 4px 22px 18px 22px;
+    font-size: 12.5px;
+    line-height: 1.6;
+    color: var(--text);
+    border-top: 1px solid var(--border);
+  }
+  .help-body p { margin: 12px 0; }
+  .help-body p:first-child { margin-top: 14px; }
+  .help-body ol {
+    margin: 10px 0;
+    padding-left: 22px;
+    color: var(--text);
+  }
+  .help-body ol li { margin-bottom: 6px; }
+  .help-body code {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11.5px;
+  }
+  .help-body em { font-style: normal; color: var(--accent); font-weight: 600; }
 </style>
 </head>
 <body>
@@ -446,25 +502,16 @@
   <aside class="sidebar">
     <div class="brand">
       FSA Adapter Split
-      <small>Plan: Composition + Option C (progressive rollout)</small>
+      <small>Inheritance vs Composition — structural decision aid</small>
     </div>
 
     <div style="background: rgba(63,185,80,0.10); border: 1px solid rgba(63,185,80,0.40); border-radius: 6px; padding: 10px 12px; font-size: 11.5px; color: var(--text); line-height: 1.5;">
-      <strong style="color: var(--ok);">Decision locked.</strong>
-      Composition over inheritance for structure; progressive 3-phase rollout to avoid coupling code refactor with config + persisted-data migration.
+      <strong style="color: var(--ok);">Recommended: Composition.</strong>
+      Toggle below to compare. Rollout phasing lives in <code style="font-size:11px;">fsa-split-rollout-phases.md</code>.
     </div>
 
     <div class="control-group">
-      <div class="control-label">Rollout phase</div>
-      <div class="toggle-group" id="phase-toggle" style="grid-template-columns: 1fr 1fr 1fr;">
-        <button data-phase="1" class="active">Phase 1</button>
-        <button data-phase="2">Phase 2</button>
-        <button data-phase="3">Phase 3</button>
-      </div>
-    </div>
-
-    <div class="control-group">
-      <div class="control-label">Approach view (reference)</div>
+      <div class="control-label">Approach</div>
       <div class="toggle-group" role="tablist">
         <button id="btn-inh" data-approach="inheritance">Inheritance</button>
         <button id="btn-comp" class="active" data-approach="composition">Composition</button>
@@ -494,6 +541,24 @@
   </aside>
 
   <main class="main">
+
+    <!-- Help / how to use -->
+    <details class="help">
+      <summary>How to read this doc</summary>
+      <div class="help-body">
+        <p><strong>Purpose.</strong> This is a decision aid for splitting the FSA adapter into separate adapter classes per backend. Today, <code>fsa.adapter.ts</code> (~2200 lines) bundles three backends behind an <code>apiBackend</code> config flag: <strong>FSA</strong> (Klarna), <strong>Amex</strong> (ProAgent), and <strong>Afterpay</strong>. The structural question is how to factor them apart — inheritance or composition.</p>
+        <p><strong>How to read it.</strong></p>
+        <ol>
+          <li>Use the <em>Approach</em> toggle in the sidebar to switch between <span style="color:var(--fsa)">Inheritance</span> and <span style="color:var(--amex)">Composition</span>. The file layout, class diagram, and code skeleton all update together.</li>
+          <li>Pick a <em>Future scenario</em> to see how each approach copes when requirements change. Verdicts (<span style="color:var(--ok)">✓</span> / <span style="color:var(--warn)">~</span> / <span style="color:var(--bad)">✗</span>) sit side by side.</li>
+          <li>The <em>Tradeoff matrix</em> at the bottom scores both approaches across 10 dimensions.</li>
+          <li>The <em>Implementation prompt</em> at the bottom-left of the sidebar updates live; copy it to relay the decision into an implementation conversation.</li>
+        </ol>
+        <p><strong>Scope.</strong> This doc is about <em>structural choice only</em>. Rollout sequencing — how to ship the refactor without breaking existing tenants or persisted data — is intentionally kept in a separate doc: <code>fsa-split-rollout-phases.md</code>.</p>
+        <p><strong>Current recommendation.</strong> Composition. The amex+afterpay overlap (shared auth, <code>inferOfferType</code>, <code>ROUND_DOWN</code>) fits naturally as shared utility modules + three sibling adapters, and avoids the awkward 3-deep "<code>FSAProAgent IS-A FSA</code>" intermediate base that inheritance would require. The toggle stays in place so the reasoning is auditable.</p>
+        <p style="color: var(--text-faint); margin-bottom: 0;">Click the summary above to collapse this section.</p>
+      </div>
+    </details>
 
     <!-- File layout -->
     <section class="section">
@@ -528,12 +593,6 @@
       <div id="scenario-panel"></div>
     </section>
 
-    <!-- Rollout phases -->
-    <section class="section">
-      <h2>Rollout phases <span class="approach-tag" style="color: var(--ok); border: 1px solid var(--ok);">Option C</span></h2>
-      <div id="phases-panel"></div>
-    </section>
-
     <!-- Tradeoff matrix -->
     <section class="section">
       <h2>Tradeoff matrix</h2>
@@ -556,9 +615,8 @@
 <script>
 // ---------- State ----------
 const state = {
-  approach: 'composition',   // decision locked
+  approach: 'composition',   // recommended; toggle stays for comparison
   scenario: 'none',
-  phase: 1,
 };
 
 // ---------- Data ----------
@@ -866,9 +924,6 @@ function renderTabs() {
   document.querySelectorAll('.toggle-group[role="tablist"] button').forEach(b => {
     b.classList.toggle('active', b.dataset.approach === state.approach);
   });
-  document.querySelectorAll('#phase-toggle button').forEach(b => {
-    b.classList.toggle('active', Number(b.dataset.phase) === state.phase);
-  });
   const isInh = state.approach === 'inheritance';
   const tagText = isInh ? 'Inheritance' : 'Composition';
   const tagClass = isInh ? 'inheritance' : 'composition';
@@ -1031,123 +1086,6 @@ function renderScenario() {
   });
 }
 
-const phases = [
-  {
-    n: 1,
-    title: 'Internal split',
-    tag: 'Refactor only — no external change',
-    goal: 'Delete the apiBackend === "amex" | "afterpay" branches from fsa.adapter.ts. The split is invisible outside the factory.',
-    changes: [
-      'Introduce <code>src/adapters/fsa-core/</code> with shared prep (prepare-payment-context, prepare-plan-context, build-plan-result), amex+afterpay-shared utils (infer-offer-type, get-pro-agent-bearer-token, map-pro-agent-error), and 3 backend classes (FSABackend, AmexBackend, AfterpayBackend).',
-      'Create <code>FSAAmexProvider</code> and <code>FSAAfterpayProvider</code> as siblings of <code>FSAProvider</code>, each extending <code>PaymentProvider</code> directly.',
-      'Factory inspects <code>config.apiBackend</code> and routes <code>case FSA</code> to the matching adapter class (default → FSAProvider, "amex" → FSAAmexProvider, "afterpay" → FSAAfterpayProvider).',
-    ],
-    unchanged: [
-      '<code>SupportedPaymentProviders</code> enum (still just <code>FSA</code>)',
-      'Tenant configs in <code>server.config.dev.json</code> (<code>apiBackend</code> stays)',
-      'Persisted records (<code>paymentProvider: "FSA"</code> stays)',
-      'Webhook payloads and API surface',
-    ],
-    tests: [
-      '3 adapter spec files: <code>fsa.adapter.spec.ts</code>, <code>fsa-amex.adapter.spec.ts</code>, <code>fsa-afterpay.adapter.spec.ts</code>',
-      'Factory routing test: given <code>apiBackend</code> value X, factory returns class Y',
-    ],
-    risk: 'low',
-    riskNote: 'Pure refactor. Existing tests + factory routing test cover regression.',
-  },
-  {
-    n: 2,
-    title: 'Add enum entries, dual-path factory',
-    tag: 'New tenants register directly; legacy alias still works',
-    goal: 'Allow new amex/afterpay tenants to register as FSA_AMEX / FSA_AFTERPAY directly. Existing tenants keep working through the legacy <code>FSA + apiBackend</code> path.',
-    changes: [
-      'Add <code>FSA_AMEX = "FSA_AMEX"</code> and <code>FSA_AFTERPAY = "FSA_AFTERPAY"</code> to enum.',
-      'Factory: add <code>case FSA_AMEX</code> → <code>new FSAAmexProvider(...)</code> and <code>case FSA_AFTERPAY</code> → <code>new FSAAfterpayProvider(...)</code>.',
-      'Add validation cases in factory (mirror <code>FSA</code>\'s credentials check, ~line 537).',
-      'Add to <code>PAYMENT_PROCESSORS</code> Set in <code>validation-constraints.constants.ts:357</code>.',
-      'Extend <code>isFSA</code> check in <code>validate-payment-method.function.ts:239</code> to recognize the new enum values.',
-      'Add entries in <code>provider-adapter-factory.ts:1200</code> <code>getProviderName</code> switch (returns "fsa_amex", "fsa_afterpay").',
-      'Add rows in <code>provider-versions.yaml</code>.',
-      'New <code>FSAAmexProvider</code> and <code>FSAAfterpayProvider</code> instances emit <code>paymentProvider: SupportedPaymentProviders.FSA_AMEX</code> | <code>FSA_AFTERPAY</code> in result metadata.',
-    ],
-    unchanged: [
-      'Existing tenant configs (still use <code>provider: "FSA"</code> + <code>apiBackend</code>)',
-      'Existing persisted records (still say <code>"FSA"</code>)',
-      'Existing factory path for <code>case FSA</code> with <code>apiBackend</code>',
-    ],
-    tests: [
-      'Factory exercises both legacy path (<code>FSA</code> + <code>apiBackend</code>) and new path (<code>FSA_AMEX</code>) for the same backend class.',
-      'Read paths handling persisted records: filters by provider must accept either <code>"FSA"</code> or <code>"FSA_AMEX"</code> until Phase 3.',
-    ],
-    risk: 'med',
-    riskNote: 'Dual-path factory increases test surface. Read-side code that filters by provider needs to handle both legacy and new strings — audit before shipping.',
-  },
-  {
-    n: 3,
-    title: 'Cut over and clean up',
-    tag: 'Single source of truth; legacy alias removed',
-    goal: 'Migrate all amex/afterpay tenants and persisted records to the new provider strings, then delete the <code>apiBackend</code> legacy path.',
-    changes: [
-      'Migration script: backfill MongoDB. For payments, plans, scheduled payments where <code>paymentProvider: "FSA"</code> AND the tenant has <code>apiBackend: "amex"</code> → update to <code>"FSA_AMEX"</code>. Same for afterpay.',
-      'Rewrite tenant configs: <code>paymentProviders.enabled: "FSA"</code> + <code>apiBackend: "amex"</code> → <code>paymentProviders.enabled: "FSA_AMEX"</code>; rename inner config key from <code>fsa</code> to <code>fsa_amex</code>; drop <code>apiBackend</code> field. Same for afterpay.',
-      'Factory: delete the <code>apiBackend</code>-routing branch from <code>case FSA</code>. <code>case FSA</code> now always returns <code>FSAProvider</code> (pure FSA).',
-      'Remove <code>apiBackend</code> field from <code>FSAProviderConfig</code> interface.',
-      'Coordinate with downstream webhook consumers: provider string in event payloads is now <code>FSA_AMEX</code> / <code>FSA_AFTERPAY</code> for those backends.',
-      'Update OpenAPI examples in <code>payment-plans.controller.ts:106,123,140</code>.',
-    ],
-    unchanged: [
-      'Adapter code (already split in Phase 1)',
-      'Backend module structure',
-    ],
-    tests: [
-      'Dry-run migration script against staging snapshot; verify row counts.',
-      'After cutover: filters by <code>FSA_AMEX</code> match all expected historical + new records.',
-      'Confirm no remaining <code>apiBackend</code> references in <code>src/</code>.',
-    ],
-    risk: 'high',
-    riskNote: 'Touches persisted data + tenant configs + downstream contracts. Coordinate a flag day: backfill → config rewrite → factory cleanup, in that order. Have a rollback plan (restore from snapshot).',
-  },
-];
-
-function renderPhases() {
-  const wrap = document.getElementById('phases-panel');
-  wrap.innerHTML = '';
-  const grid = document.createElement('div');
-  grid.className = 'phases-grid';
-  phases.forEach(p => {
-    const card = document.createElement('div');
-    card.className = `phase-card p${p.n}${state.phase === p.n ? ' active' : ''}`;
-    card.innerHTML = `
-      <div class="phase-tag">Phase ${p.n} <span class="risk ${p.risk}">${p.risk} risk</span></div>
-      <h4>${p.title}</h4>
-      <div style="color: var(--text-dim); font-size: 11px; margin-bottom: 8px;">${p.tag}</div>
-      <p class="phase-goal"><strong>Goal:</strong> ${p.goal}</p>
-
-      <div class="phase-section">
-        <span class="lbl">Changes</span>
-        <ul>${p.changes.map(c => `<li>${c}</li>`).join('')}</ul>
-      </div>
-
-      <div class="phase-section">
-        <span class="lbl">Unchanged</span>
-        <ul>${p.unchanged.map(c => `<li>${c}</li>`).join('')}</ul>
-      </div>
-
-      <div class="phase-section">
-        <span class="lbl">Tests / verification</span>
-        <ul>${p.tests.map(c => `<li>${c}</li>`).join('')}</ul>
-      </div>
-
-      <div class="phase-section">
-        <span class="lbl">Risk</span>
-        <div style="color: var(--text);">${p.riskNote}</div>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-  wrap.appendChild(grid);
-}
-
 function renderMatrix() {
   const tbody = document.getElementById('matrix-body');
   tbody.innerHTML = '';
@@ -1163,41 +1101,46 @@ function renderMatrix() {
 }
 
 function updatePrompt() {
-  const p = state.phase;
-  const phase = phases[p - 1];
+  const choice = state.approach;
+  const choiceLabel = choice === 'inheritance' ? 'inheritance' : 'composition';
 
   const lines = [
-    `Plan: split FSA adapter into FSAProvider + FSAAmexProvider + FSAAfterpayProvider using composition, rolled out in 3 phases (Option C — progressive).`,
+    `Structural decision: split the FSA adapter into FSAProvider + FSAAmexProvider + FSAAfterpayProvider using ${choiceLabel}.`,
     ``,
     `Context:`,
-    `- feature/fsa-afterpay-tenant adds Afterpay as a third apiBackend variant alongside FSA and Amex. Land it on main first; do not split before it merges.`,
-    `- Amex and Afterpay share auth (POST /api/Authenticate/Token with form-data), inferOfferType (PIF/SIF/OTHER), ROUND_DOWN rounding, and the metadata shape. FSA shares none of that.`,
-    `- Persisted MongoDB records currently have paymentProvider: "FSA" baked in for both amex and afterpay tenants — this drives the phased rollout.`,
-    ``,
-    `Structural decision: composition (not inheritance).`,
-    `- 3 sibling adapter classes, all extending PaymentProvider directly.`,
-    `- Shared code lives in src/adapters/fsa-core/ as standalone modules + 3 backend classes; each adapter imports what it needs.`,
-    `- Avoids the awkward 3-deep "FSAProAgentProvider IS-A FSAProvider" intermediate base that inheritance would require for amex+afterpay overlap.`,
-    `- Scales linearly when a 4th backend appears: add a backend file + adapter; no hierarchy re-evaluation.`,
-    ``,
-    `Rollout (Option C — progressive):`,
-    ``,
-    `Phase 1 — Internal split (no external change).`,
-    `  Goal: delete apiBackend === "amex" | "afterpay" branches from fsa.adapter.ts. Factory inspects config.apiBackend and routes case FSA to FSAProvider / FSAAmexProvider / FSAAfterpayProvider. Enum stays at FSA only. Tenants and persisted data untouched.`,
-    ``,
-    `Phase 2 — Add enum entries, dual-path factory.`,
-    `  Goal: new tenants register as FSA_AMEX / FSA_AFTERPAY directly while legacy FSA + apiBackend still works. Add to enum, factory cases, validation switch, PAYMENT_PROCESSORS Set, isFSA check, getProviderName switch, provider-versions.yaml. New instances emit the new provider strings in metadata.`,
-    ``,
-    `Phase 3 — Cut over and clean up.`,
-    `  Goal: single source of truth. Backfill MongoDB records (paymentProvider: "FSA" + tenant apiBackend: "amex" → "FSA_AMEX"; same for afterpay). Rewrite tenant configs. Delete the apiBackend-routing branch from factory case FSA. Coordinate with webhook consumers.`,
-    ``,
-    `Phase currently expanded in the doc: Phase ${p} — ${phase.title} (${phase.risk} risk).`,
+    `- Today fsa.adapter.ts (~2200 lines) handles three backends (FSA, Amex, Afterpay) via apiBackend config branching. feature/fsa-afterpay-tenant added Afterpay as the third variant; land it on main first before splitting.`,
+    `- Amex and Afterpay share auth (POST /api/Authenticate/Token form-data), inferOfferType (PIF/SIF/OTHER), ROUND_DOWN rounding, and metadata shape. FSA shares none of that.`,
   ];
 
+  if (choice === 'composition') {
+    lines.push(
+      ``,
+      `Shape (composition, recommended):`,
+      `- Three sibling adapter classes — FSAProvider, FSAAmexProvider, FSAAfterpayProvider — all extending PaymentProvider directly.`,
+      `- Shared code in src/adapters/fsa-core/: prep modules (prepare-payment-context, prepare-plan-context, build-plan-result), amex+afterpay-shared utilities (infer-offer-type, get-pro-agent-bearer-token parameterized by backendLabel, map-pro-agent-error), and three backend classes (FSABackend, AmexBackend, AfterpayBackend) holding the API-call code.`,
+      `- Each adapter imports only what it needs from fsa-core. No intermediate base class; no inheritance tree beyond extending PaymentProvider.`,
+      `- Scales linearly: a 4th backend is a new backend file + new adapter, not a hierarchy re-evaluation.`
+    );
+  } else {
+    lines.push(
+      ``,
+      `Shape (inheritance, alternative for comparison):`,
+      `- FSAProvider becomes pure-FSA with protected seams (getPlanRoundingMode, assertSchedulesSupported, executeSinglePayment, executeProviderPlan).`,
+      `- An abstract FSAProAgentProvider extends FSAProvider and owns the amex+afterpay shared code (inferOfferType, getBearerToken, ROUND_DOWN override, mapProAgentError).`,
+      `- FSAAmexProvider and FSAAfterpayProvider both extend FSAProAgentProvider and implement the three abstract API-call methods.`,
+      `- Caveat: the IS-A relationship is nominal — FSAProAgentProvider extends FSAProvider but shares almost no code with FSA's actual API surface.`
+    );
+  }
+
+  lines.push(
+    ``,
+    `Out of scope for this doc: the rollout strategy (how to ship without breaking existing tenants or persisted MongoDB data) lives in fsa-split-rollout-phases.md.`
+  );
+
   if (state.scenario !== 'none') {
-    const s = scenarios[state.scenario]['composition'];
+    const s = scenarios[state.scenario][choice];
     const verdictWord = s.v === 'ok' ? 'handles' : s.v === 'warn' ? 'tolerates' : 'struggles with';
-    lines.push(``, `Cross-check: the "${scenarios[state.scenario].title}" scenario shows composition ${verdictWord} that change.`);
+    lines.push(``, `Cross-check: the "${scenarios[state.scenario].title}" scenario shows ${choiceLabel} ${verdictWord} that change.`);
   }
 
   document.getElementById('prompt-out').textContent = lines.join('\n');
@@ -1209,19 +1152,11 @@ function updateAll() {
   renderCode();
   renderDiagram();
   renderScenario();
-  renderPhases();
   renderMatrix();
   updatePrompt();
 }
 
 // ---------- Wire controls ----------
-document.querySelectorAll('#phase-toggle button').forEach(b => {
-  b.addEventListener('click', () => {
-    document.querySelectorAll('#phase-toggle button').forEach(x => x.classList.toggle('active', x === b));
-    state.phase = Number(b.dataset.phase);
-    updateAll();
-  });
-});
 document.querySelectorAll('.toggle-group[role="tablist"] button').forEach(b => {
   b.addEventListener('click', () => {
     state.approach = b.dataset.approach;
