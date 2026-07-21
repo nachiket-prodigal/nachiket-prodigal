@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>(tenant, srcId) Composite-Key Routing — Proposal</title>
+<style>
+  :root {
+    --bg: #0d1117; --bg-elev: #161b22; --bg-elev-2: #1c2128;
+    --border: #30363d; --border-strong: #484f58;
+    --text: #e6edf3; --text-dim: #8b949e; --text-faint: #6e7681;
+    --accent: #58a6ff; --code-bg: #010409;
+    --generic: #8b949e; --tsi: #2dd4bf; --fsa: #58a6ff;
+    --ap: #3fb950; --amex: #f78166; --aut: #bc8cff; --uat: #d29922;
+    --ok: #3fb950; --warn: #d29922; --bad: #f85149; --peculiar: #f78166;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 13px; line-height: 1.55; }
+  code, .mono { font-family: var(--mono); }
+
+  .layout { display: grid; grid-template-columns: 340px 1fr; min-height: 100vh; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } .sidebar { position: static !important; height: auto !important; } }
+
+  .sidebar { background: var(--bg-elev); border-right: 1px solid var(--border); padding: 22px 20px; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+  .brand { display: flex; flex-direction: column; gap: 4px; }
+  .brand .kicker { font-family: var(--mono); font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase; color: var(--text-faint); }
+  .brand .name { font-weight: 600; font-size: 15px; letter-spacing: -.01em; }
+  .brand .name b { color: var(--accent); font-weight: 600; }
+
+  .ctl { display: flex; flex-direction: column; gap: 9px; }
+  .ctl > .lbl { font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+
+  .modes { display: flex; flex-direction: column; gap: 7px; }
+  .mode { text-align: left; border: 1px solid var(--border); background: var(--bg-elev-2); color: var(--text); border-radius: 8px; padding: 9px 11px; cursor: pointer; display: flex; gap: 9px; align-items: flex-start; }
+  .mode:hover { border-color: var(--border-strong); }
+  .mode[aria-pressed="true"] { border-color: var(--tc, var(--accent)); box-shadow: inset 0 0 0 1px var(--tc, var(--accent)); }
+  .mode .n { font-family: var(--mono); font-size: 11px; color: var(--text-faint); flex: none; width: 14px; }
+  .mode .t { display: flex; flex-direction: column; gap: 1px; }
+  .mode .t b { font-weight: 600; font-size: 12.5px; }
+  .mode .t span { color: var(--text-dim); font-size: 11px; }
+
+  .chips { display: flex; flex-direction: column; gap: 6px; }
+  .chip { display: flex; align-items: center; gap: 9px; border: 1px solid var(--border); background: var(--bg-elev-2); color: var(--text); border-radius: 7px; padding: 8px 10px; cursor: pointer; font-family: var(--mono); font-size: 12px; }
+  .chip:hover { border-color: var(--border-strong); }
+  .chip[aria-pressed="true"] { border-color: var(--tc, var(--accent)); box-shadow: inset 0 0 0 1px var(--tc, var(--accent)); }
+  .chip .sw { width: 8px; height: 8px; border-radius: 50%; background: var(--tc, var(--text-faint)); flex: none; }
+  .chip .desc { color: var(--text-dim); margin-left: auto; font-family: var(--sans); font-size: 10.5px; }
+
+  .legend { border-top: 1px solid var(--border); padding-top: 14px; display: flex; flex-direction: column; gap: 6px; }
+  .legend .row { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text-dim); }
+  .legend .sw { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+
+  .main { padding: 30px 34px 60px; max-width: 1000px; }
+  h1 { font-size: 21px; margin: 0 0 4px; letter-spacing: -.02em; }
+  .lede { color: var(--text-dim); margin: 0 0 24px; max-width: 74ch; }
+  .lede code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+
+  .panel { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 18px; }
+  .panel.hl { border-color: color-mix(in srgb, var(--peculiar) 55%, var(--border)); }
+  .panel > .ph { padding: 12px 16px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--text-faint); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .panel.hl > .ph { color: var(--peculiar); }
+  .panel > .pb { padding: 16px; }
+
+  .req { font-family: var(--mono); font-size: 12.5px; background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: pre; }
+  .req .k { color: var(--text-faint); } .req .tenant { color: var(--accent); } .req .src { color: var(--tc, var(--text)); } .req .muted { color: var(--text-faint); font-style: italic; }
+
+  /* variance matrix */
+  .matrix { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .matrix th, .matrix td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; }
+  .matrix thead th { font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-faint); }
+  .matrix th.layer { font-weight: 500; color: var(--text); }
+  .matrix td { text-align: center; font-family: var(--mono); font-size: 11.5px; }
+  .matrix col.sel, .matrix th.sel, .matrix td.sel { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  .matrix th.sel { color: var(--accent); }
+  .cell-src { color: var(--warn); font-weight: 600; }
+  .cell-src.pec { color: var(--peculiar); }
+  .cell-tenant { color: var(--text-faint); }
+  .cell-na { color: var(--text-faint); opacity: .55; }
+  .pecmark { color: var(--peculiar); }
+  .matrix .layer small { display: block; color: var(--text-faint); font-family: var(--sans); font-size: 10.5px; }
+
+  /* trace */
+  .trace { display: flex; flex-direction: column; }
+  .stg { position: relative; padding: 0 0 16px 34px; }
+  .stg .rail { position: absolute; left: 9px; top: 4px; bottom: -4px; width: 2px; background: var(--border); }
+  .stg:last-child .rail { display: none; }
+  .stg .dot { position: absolute; left: 3px; top: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); border: 2px solid var(--accent); }
+  .stg.term .dot { border-color: var(--tc); background: var(--tc); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tc) 20%, transparent); }
+  .stg.term.bad .dot { border-color: var(--bad); background: var(--bad); box-shadow: 0 0 0 4px color-mix(in srgb, var(--bad) 22%, transparent); }
+  .stg .sl { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--text-faint); }
+  .stg .sv { font-family: var(--mono); font-size: 13.5px; font-weight: 600; margin-top: 2px; }
+  .stg .sn { font-size: 11.5px; color: var(--text-dim); margin-top: 2px; }
+
+  .kv { display: grid; grid-template-columns: 168px 1fr; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .kv > div { padding: 8px 12px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; }
+  .kv > div:nth-last-child(-n+2) { border-bottom: 0; }
+  .kv .k { background: var(--bg-elev-2); color: var(--text-faint); font-size: 10.5px; letter-spacing: .04em; text-transform: uppercase; }
+  .kv .v { color: var(--text); word-break: break-word; }
+  .kv .v .tag { font-size: 10px; padding: 1px 6px; border-radius: 10px; margin-left: 6px; }
+  .tag.keep { background: color-mix(in srgb, var(--ok) 18%, transparent); color: var(--ok); }
+  .tag.move { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--bad); }
+  .tag.pec { background: color-mix(in srgb, var(--peculiar) 18%, transparent); color: var(--peculiar); }
+
+  .verdict { display: flex; gap: 10px; padding: 12px 14px; border-radius: 9px; font-size: 12.5px; align-items: flex-start; margin-top: 14px; }
+  .verdict .i { font-family: var(--mono); font-weight: 800; flex: none; }
+  .verdict.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); } .verdict.ok .i { color: var(--ok); }
+  .verdict.warn { background: color-mix(in srgb, var(--warn) 12%, transparent); } .verdict.warn .i { color: var(--warn); }
+  .verdict.bad { background: color-mix(in srgb, var(--bad) 12%, transparent); } .verdict.bad .i { color: var(--bad); }
+  .verdict b { color: var(--text); }
+
+  .map { display: grid; grid-template-columns: 1fr 24px 1fr; gap: 7px 4px; align-items: center; font-family: var(--mono); font-size: 11.5px; }
+  .map .from, .map .to { border: 1px solid var(--border); border-radius: 7px; padding: 7px 10px; background: var(--bg-elev-2); display: flex; align-items: center; gap: 8px; }
+  .map .to { border-left: 3px solid var(--tc, var(--border)); }
+  .map .arr { color: var(--text-faint); text-align: center; }
+  .map .sw { width: 8px; height: 8px; border-radius: 50%; background: var(--tc, var(--text-faint)); flex: none; }
+  .map .db { margin-left: auto; color: var(--text-dim); font-size: 10.5px; }
+
+  .callouts { display: flex; flex-direction: column; gap: 10px; }
+  .call { display: flex; gap: 11px; padding: 11px 13px; border: 1px solid var(--border); border-radius: 9px; background: var(--bg-elev-2); }
+  .call .b { color: var(--peculiar); font-family: var(--mono); font-weight: 700; flex: none; }
+  .call .c b { color: var(--text); }
+  .call .c { color: var(--text-dim); font-size: 12px; }
+  .call .c code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; font-size: 11px; }
+
+  .decisions { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 680px) { .decisions { grid-template-columns: 1fr; } }
+  .dec { border: 1px solid var(--border); border-radius: 10px; padding: 13px 15px; background: var(--bg-elev-2); }
+  .dec .dn { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: .1em; text-transform: uppercase; }
+  .dec .dt { font-weight: 600; margin: 3px 0 4px; }
+  .dec .dd { color: var(--text-dim); font-size: 11.5px; }
+  .dec .dd code { background: var(--code-bg); padding: 1px 4px; border-radius: 3px; font-size: 10.5px; }
+
+  .foot { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--text-faint); font-size: 11px; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="kicker">payments-core · proposal</div>
+      <div class="name"><b>(tenant, srcId)</b> routing</div>
+    </div>
+
+    <div class="ctl">
+      <div class="lbl">Provider</div>
+      <div class="chips" id="providers"></div>
+    </div>
+
+    <div class="ctl">
+      <div class="lbl">srcId</div>
+      <div class="chips" id="srcs"></div>
+    </div>
+
+    <div class="ctl">
+      <div class="lbl">Consolidation model</div>
+      <div class="modes" id="modes">
+        <button class="mode" data-mode="today" aria-pressed="true"><span class="n">1</span><span class="t"><b>Tenant-per-variant</b><span>today: one tenant per srcId</span></span></button>
+        <button class="mode" data-mode="naive"><span class="n">2</span><span class="t"><b>Rename, tenant-only key</b><span>the trap</span></span></button>
+        <button class="mode" data-mode="proposed"><span class="n">3</span><span class="t"><b>Composite (tenant, srcId)</b><span>the proposal</span></span></button>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="row"><span class="sw" style="background:var(--warn)"></span> varies by srcId</div>
+      <div class="row"><span class="sw" style="background:var(--peculiar)"></span> FSA-only peculiarity</div>
+      <div class="row"><span class="sw" style="background:var(--text-faint)"></span> keyed by tenant</div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <h1>Routing on the <code style="font-size:.9em">(tenant, srcId)</code> composite key</h1>
+    <p class="lede">A provider-agnostic model: the database, config, and adapter are chosen from <code>(tenantId, srcId)</code> rather than <code>tenantId</code> alone. <code>srcId</code> is optional — most providers never set it. How <i>much</i> varies per srcId differs by provider; <b>FSA is the maximal case</b>. Pick a provider to see what its srcId actually switches.</p>
+
+    <div class="panel">
+      <div class="ph">What varies per <span class="mono">srcId</span> — by provider <span id="mNote" style="color:var(--text-dim)"></span></div>
+      <div class="pb" style="overflow-x:auto"><table class="matrix" id="matrix"></table></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">Incoming request</div>
+      <div class="pb"><div class="req" id="req"></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">resolveRoute() — the key becomes config + database + adapter</div>
+      <div class="pb"><div class="trace" id="trace"></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">Resolved route</div>
+      <div class="pb"><div class="kv" id="kv"></div><div id="verdict"></div></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">Consolidation map <span class="mono" id="mapNote" style="color:var(--text-dim)"></span></div>
+      <div class="pb"><div class="map" id="map"></div></div>
+    </div>
+
+    <div class="panel hl">
+      <div class="ph">Why FSA is the hard case — peculiarities the generic model must absorb</div>
+      <div class="pb"><div class="callouts">
+        <div class="call"><span class="b">✦</span><span class="c"><b>Distinct Repay vault per srcId.</b> FSA tokenizes via Repay, and each subtype has its <b>own Repay merchant</b>. A customer/token minted under one srcId is invalid on another → srcId must span the <b>whole</b> consumer→token→charge lifecycle, not just the charge. (TSI has no vault; generic providers use one.)</span></div>
+        <div class="call"><span class="b">✦</span><span class="c"><b>Separate deployment &amp; region.</b> Amex runs in its own pod (<code>server.config.fsa-amex.json</code>) in <b>use1</b>; FSA/Afterpay are prod <b>use2</b>. Serving amex from <code>fsa_use2_000</code> needs <code>FSA_AMEX_*</code> secrets provisioned into prod.</span></div>
+        <div class="call"><span class="b">✦</span><span class="c"><b>Per-srcId databases, kept separate.</b> Unlike TSI (both srcIds share one DB), FSA subtypes each keep their own book — including <code>fsa_use1_amx</code> vs <code>fsa_use1_aut</code>, an <b>intentional same-creds split</b> (PR #151). The composite key preserves them with <b>zero migration</b>.</span></div>
+        <div class="call"><span class="b">✦</span><span class="c"><b>Different backend code paths.</b> srcId selects an entirely different strategy (FSA vs Amex ProAgent vs Afterpay), not just a credential set. UAT (<code>fsa_use2_amx</code>) is an <b>environment</b>, not a subtype — it should not become a prod srcId.</span></div>
+      </div></div>
+    </div>
+
+    <div class="panel">
+      <div class="ph">The five decisions (generic)</div>
+      <div class="pb"><div class="decisions">
+        <div class="dec"><div class="dn">1 · Config</div><div class="dt">Per-(tenant, srcId) blocks</div><div class="dd"><code>paymentProviders.&lt;p&gt;.subtypes.&lt;srcId&gt;</code>, each with its own creds + optional <code>database</code>. Flat legacy config = one implicit default srcId.</div></div>
+        <div class="dec"><div class="dn">2 · Data</div><div class="dt">Per-provider choice</div><div class="dd">DB defaults to <code>TENANT_NAMES[tenant]</code>; a subtype may override it. TSI shares; FSA keeps books separate → no migration.</div></div>
+        <div class="dec"><div class="dn">3 · API</div><div class="dt">srcId optional, everywhere</div><div class="dd">On every op (incl. consumer/token where a vault is subtype-scoped), persisted on every record. <code>tenantId</code> semantics unchanged.</div></div>
+        <div class="dec"><div class="dn">4 · Runtime</div><div class="dt">Widen the registry key</div><div class="dd">Immutable adapter per <code>(tenant, srcId)</code>, selected at request time. Stores take the resolved route, not a bare tenantId.</div></div>
+        <div class="dec"><div class="dn">5 · Quality</div><div class="dt">One resolver, one path</div><div class="dd"><code>request → resolveRoute → { adapter, db }</code>. No srcId branching scattered through adapters or stores.</div></div>
+        <div class="dec"><div class="dn">✓ Live proof</div><div class="dt">TSI already does it</div><div class="dd"><code>tsi_use2_000</code> + <code>tsi_use2_sme</code> share one DB, split by srcId (NTTA/SME). This generalises the pattern.</div></div>
+      </div></div>
+    </div>
+
+    <div class="foot" id="foot"></div>
+  </main>
+</div>
+
+<script>
+  const LAYERS = [
+    { key: "endpoint",   name: "Upstream endpoint",     sub: "baseUrl" },
+    { key: "credentials",name: "Credentials",           sub: "api key / user+pass" },
+    { key: "vault",      name: "Vault (customer+token)", sub: "Repay merchant", pec: true },
+    { key: "database",   name: "Database",              sub: "where records land", pec: true },
+    { key: "deployment", name: "Deployment / region",   sub: "which pod", pec: true },
+    { key: "backend",    name: "Backend strategy",      sub: "code path", pec: true },
+    { key: "reqfield",   name: "Request-field mapping", sub: "e.g. payer_address" },
+  ];
+
+  const PROVIDERS = {
+    generic: {
+      name: "Generic", accent: "--generic", example: "Payment Vision, USAePay, Repay …",
+      consolidated: "cnl_use2_000", providerName: "PAYMENT_VISION",
+      varies: { endpoint:"tenant", credentials:"tenant", vault:"tenant", database:"tenant", deployment:"tenant", backend:"tenant", reqfield:"na" },
+      srcs: [ { id:"", label:"(no srcId)", today:"cnl_use2_000", db:"cnl_use2_000", base:"$env.PV_BASE_URL", cvar:"--generic", backend:"PAYMENT_VISION" } ],
+      note: "One implicit subtype. Route = tenant only; srcId unused. This is ~90% of tenants."
+    },
+    tsi: {
+      name: "TSI", accent: "--tsi", example: "tolling / DCT",
+      consolidated: "tsi_use2_000", providerName: "TSI",
+      varies: { endpoint:"src", credentials:"src", vault:"na", database:"tenant", deployment:"tenant", backend:"tenant", reqfield:"src" },
+      srcs: [
+        { id:"NTTA", label:"NTTA (default)", today:"tsi_use2_000", db:"tsi_use2_000", base:"$env.TSI_BASE_URL",     cvar:"--tsi", backend:"TSI", extra:"payer_address → TOLL" },
+        { id:"SME",  label:"SME",            today:"tsi_use2_sme", db:"tsi_use2_000", base:"$env.TSI_SME_BASE_URL", cvar:"--tsi", backend:"TSI", extra:"payer_address → TSI" },
+      ],
+      note: "srcId switches endpoint, api key & one request field — but both srcIds already SHARE one DB. No vault. Live in prod today."
+    },
+    fsa: {
+      name: "FSA", accent: "--fsa", example: "FSA / Amex ProAgent / Afterpay",
+      consolidated: "fsa_use2_000", providerName: "FSA",
+      varies: { endpoint:"src", credentials:"src", vault:"src", database:"src", deployment:"src", backend:"src", reqfield:"na" },
+      srcs: [
+        { id:"fsa",          label:"FSA (default)",   today:"fsa_use2_000", db:"fsa_use2_000", base:"$env.FSA_BASE_URL",          cvar:"--fsa",  backend:"FSA",      repay:"$env.FSA_REPAY_MERCHANT_ID",          region:"use2", deploy:"prod" },
+        { id:"fsa-ap",       label:"Afterpay",        today:"fsa_use2_0ap", db:"fsa_use2_000", base:"$env.FSA_AFTERPAY_BASE_URL", cvar:"--ap",   backend:"AFTERPAY", repay:"$env.FSA_AFTERPAY_REPAY_MERCHANT_ID", region:"use2", deploy:"prod" },
+        { id:"fsa-amex",     label:"Amex",            today:"fsa_use1_amx", db:"fsa_use1_amx", base:"$env.FSA_AMEX_BASE_URL",     cvar:"--amex", backend:"AMEX",     repay:"$env.FSA_AMEX_REPAY_MERCHANT_ID",     region:"use1", deploy:"fsa-amex pod" },
+        { id:"fsa-amex-aut", label:"Amex — aut book", today:"fsa_use1_aut", db:"fsa_use1_aut", base:"$env.FSA_AMEX_BASE_URL",     cvar:"--aut",  backend:"AMEX",     repay:"$env.FSA_AMEX_REPAY_MERCHANT_ID",     region:"use1", deploy:"fsa-amex pod" },
+        { id:"fsa-amex-uat", label:"Amex — UAT",      today:"fsa_use2_amx", db:"fsa_use2_amx", base:"$env.FSA_AMEX_BASE_URL_UAT", cvar:"--uat",  backend:"AMEX",     repay:"$env.FSA_AMEX_REPAY_MERCHANT_ID_UAT", region:"use2", deploy:"fsa-amex UAT" },
+      ],
+      note: "Every layer varies per srcId — endpoint, creds, vault, DB, deployment and code path. The reason the generic model exists."
+    },
+  };
+  const PORDER = ["generic", "tsi", "fsa"];
+  const state = { provider: "fsa", srcIdx: 2, mode: "today" };
+
+  function esc(s){ return String(s).replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+  function cur(){ const p = PROVIDERS[state.provider]; return { p, s: p.srcs[state.srcIdx] }; }
+
+  /* ---- variance matrix: generic frame, FSA peculiarity highlighted ---- */
+  function renderMatrix() {
+    const el = document.getElementById("matrix");
+    const selCol = { generic: 0, tsi: 1, fsa: 2 }[state.provider];
+    const head = `<colgroup><col><col class="${selCol===0?'sel':''}"><col class="${selCol===1?'sel':''}"><col class="${selCol===2?'sel':''}"></colgroup>
+      <thead><tr><th></th>
+        <th class="${selCol===0?'sel':''}">Generic</th>
+        <th class="${selCol===1?'sel':''}">TSI</th>
+        <th class="${selCol===2?'sel':''}">FSA</th></tr></thead>`;
+    const cellTxt = (v, pec) => {
+      if (v === "src")    return `<span class="cell-src ${pec?'pec':''}">srcId${pec?' ✦':''}</span>`;
+      if (v === "tenant") return `<span class="cell-tenant">tenant</span>`;
+      if (v === "na")     return `<span class="cell-na">n/a</span>`;
+      return `<span class="cell-na">—</span>`;
+    };
+    const rows = LAYERS.map(L => {
+      const g = PROVIDERS.generic.varies[L.key], t = PROVIDERS.tsi.varies[L.key], f = PROVIDERS.fsa.varies[L.key];
+      return `<tr>
+        <th class="layer">${L.name}${L.pec?' <span class="pecmark">✦</span>':''}<small>${L.sub}</small></th>
+        <td class="${selCol===0?'sel':''}">${cellTxt(g,false)}</td>
+        <td class="${selCol===1?'sel':''}">${cellTxt(t,false)}</td>
+        <td class="${selCol===2?'sel':''}">${cellTxt(f, L.pec)}</td></tr>`;
+    }).join("");
+    el.innerHTML = head + "<tbody>" + rows + "</tbody>";
+    document.getElementById("mNote").textContent = "— ✦ = FSA-only";
+  }
+
+  function resolve() {
+    const { p, s } = cur();
+    if (state.provider === "generic") {
+      return { tenant: s.today, srcId: null, routeKey: s.today, db: s.db, base: s.base, backend: s.backend, health: "ok", generic: true };
+    }
+    if (state.mode === "today") {
+      return { tenant: s.today, srcId: null, routeKey: s.today, db: s.db, base: s.base, backend: s.backend,
+        repay: s.repay, region: s.region, deploy: s.deploy, health: "warn", model: "today" };
+    }
+    if (state.mode === "naive") {
+      const isDefault = state.srcIdx === 0;
+      return { tenant: p.consolidated, srcId: (s.id || "—") + " (ignored)", routeKey: p.consolidated,
+        db: PROVIDERS[state.provider].srcs[0].db, base: p.srcs[0].base, backend: p.srcs[0].backend + " (only instance)",
+        repay: p.srcs[0].repay, collide: !isDefault, health: isDefault ? "warn" : "bad", model: "naive" };
+    }
+    return { tenant: p.consolidated, srcId: s.id, routeKey: `${p.consolidated}#${s.id}`, db: s.db, base: s.base,
+      backend: s.backend, repay: s.repay, region: s.region, deploy: s.deploy, health: "ok", model: "proposed" };
+  }
+
+  function renderReq(r) {
+    const { s } = cur();
+    const srcLine = (state.provider === "generic" || (state.mode === "today" && state.provider !== "generic"))
+      ? `  <span class="k">// no srcId — ${state.provider==="generic"?"provider has one subtype":"tenant encodes the variant"}</span>`
+      : `  <span class="k">srcId</span>:    <span class="src">"${esc(s.id)}"</span>${state.mode==="naive"?`   <span class="muted">← ignored: key is tenant-only</span>`:""}`;
+    document.getElementById("req").innerHTML =
+`POST /payments
+{
+  <span class="k">tenantId</span>: <span class="tenant">"${esc(r.tenant)}"</span>,
+${srcLine}
+  <span class="k">provider</span>: <span class="src">"${esc(PROVIDERS[state.provider].providerName)}"</span>
+}`;
+  }
+
+  function stg(cls, sl, sv, sn, tc) {
+    return `<div class="stg ${cls||""}" ${tc?`style="--tc:var(${tc})"`:""}><div class="rail"></div><div class="dot"></div>
+      <div class="sl">${sl}</div><div class="sv">${sv}</div>${sn?`<div class="sn">${sn}</div>`:""}</div>`;
+  }
+  function renderTrace(r) {
+    const { s } = cur();
+    let h = "";
+    const keyTxt = r.srcId === null ? `tenantId = ${r.tenant}` : `(tenantId, srcId) = (${r.tenant}, ${state.mode==="naive"?"—":s.id})`;
+    h += stg("", "1 · request key", keyTxt, state.mode==="naive" ? "srcId present but the lookup ignores it" : "the identity routed on");
+    h += stg("", "2 · routeKey", r.routeKey, state.mode==="proposed" ? "tenant + srcId form the identity" : "keyed on tenant alone");
+    h += stg("", "3 · database", r.db, state.mode==="proposed" ? "from the subtype's `database`" : "TENANT_NAMES[tenant]");
+    h += stg("", "4 · config", `${r.backend} · ${esc(r.base)}`, r.repay ? `Repay merchant ${esc(r.repay)}` : (r.generic?"single credential set":"no vault"));
+    const bad = r.health === "bad";
+    h += stg("term "+(bad?"bad":""), "5 · adapter dispatch",
+      bad ? "wrong adapter — creds unreachable" : `${r.backend.replace(/ .*/,"")} instance`,
+      bad ? "one (tenant,provider) instance holds only the default config" : "immutable per-route instance", bad?null:s.cvar);
+    document.getElementById("trace").innerHTML = h;
+  }
+
+  function renderKv(r) {
+    const { s } = cur();
+    const dbTag = state.provider!=="generic" && state.mode==="proposed"
+      ? (s.db===PROVIDERS[state.provider].srcs[0].db && state.provider==="tsi" ? `<span class="tag keep">shared DB</span>` : `<span class="tag keep">unchanged — no migration</span>`)
+      : (r.collide ? `<span class="tag move">merged into ${r.tenant}</span>` : "");
+    const rows = [
+      ["routeKey", r.routeKey],
+      ["writes to db", `${r.db} ${dbTag}`],
+      ["config / creds", `${r.backend} · ${esc(r.base)}`],
+    ];
+    if (r.repay !== undefined) rows.push(["repay vault merchant", `${esc(r.repay)} ${state.provider==="fsa"?'<span class="tag pec">FSA: per-srcId</span>':""}`]);
+    if (r.region) rows.push(["deployment", `${r.deploy} · ${r.region}${state.mode==="proposed"&&r.deploy&&r.deploy.includes("pod")?' → needs FSA_AMEX_* in prod':''}`]);
+    document.getElementById("kv").innerHTML = rows.map(([k,v])=>`<div class="k">${k}</div><div class="v">${v}</div>`).join("");
+  }
+
+  function renderVerdict(r) {
+    const { p, s } = cur();
+    let cls, ic, msg;
+    if (r.generic) {
+      cls="ok"; ic="✓"; msg=`This provider has a <b>single subtype</b> — <code>srcId</code> plays no role, the route is just the tenant. The composite key is a no-op here, which is why the change is <b>backward-compatible for ~90% of tenants</b>.`;
+    } else if (state.mode==="today") {
+      cls="warn"; ic="●"; msg=`Works, but this variant is its <b>own tenant</b> (<code>${s.today}</code>)${p===PROVIDERS.fsa && s.deploy && s.deploy!=="prod" ? ` on a <b>separate ${s.region} pod</b>` : ""}. Consolidation would fold it under <code>${p.consolidated}</code>.`;
+    } else if (state.mode==="naive" && r.collide) {
+      cls="bad"; ic="✗"; msg=`<b>Broken.</b> A tenant-only key ignores <code>${s.id}</code>: it collapses into <code>${p.consolidated}</code>, its records merge into the wrong book <b>and</b> the single adapter can only present the default (<code>${p.srcs[0].id||"base"}</code>) credentials. srcId has nothing to grab onto.`;
+    } else if (state.mode==="naive") {
+      cls="warn"; ic="●"; msg=`Only the default stream survives a naive rename — it already maps to <code>${p.consolidated}</code>. Every other srcId breaks (switch srcId to see).`;
+    } else {
+      const pec = state.provider==="fsa";
+      cls="ok"; ic="✓"; msg=`Routed cleanly to <b>${r.backend}</b> via <code>${r.routeKey}</code>. Records stay in <code>${r.db}</code> (${state.provider==="tsi"?"already shared":"no migration"})${pec?`, and this subtype's <b>own Repay vault</b> covers the whole lifecycle`:""}.${pec&&s.deploy&&s.deploy.includes("pod")?` Prerequisite: <code>FSA_AMEX_*</code> in the prod env.`:""}`;
+    }
+    document.getElementById("verdict").innerHTML = `<div class="verdict ${cls}"><span class="i">${ic}</span><div>${msg}</div></div>`;
+  }
+
+  function renderMap() {
+    const el = document.getElementById("map"), note = document.getElementById("mapNote");
+    const p = PROVIDERS[state.provider];
+    if (state.provider === "generic") {
+      note.textContent = "· single tenant — nothing to consolidate";
+      el.innerHTML = `<div class="from"><span class="sw"></span>${p.consolidated}</div><div class="arr"></div><div class="from" style="opacity:.5"><span class="sw"></span>unchanged</div>`;
+      return;
+    }
+    note.textContent = state.mode==="today" ? "· current state" : "· target: one tenant, srcId-split";
+    el.innerHTML = p.srcs.map(s => {
+      const active = s === cur().s;
+      const to = state.mode==="today"
+        ? `<div class="from" style="${active?`--tc:var(${s.cvar})`:""}"><span class="sw" style="background:var(${s.cvar})"></span>${s.today}<span class="db">db ${s.db}</span></div>`
+        : `<div class="to" style="--tc:var(${s.cvar})"><span class="sw"></span>${p.consolidated} <span style="color:var(${s.cvar})">#${s.id}</span><span class="db">db ${s.db}</span></div>`;
+      return `<div class="from" style="${active?`--tc:var(${s.cvar})`:""}"><span class="sw" style="background:var(${s.cvar})"></span>${s.today}</div><div class="arr">→</div>${to}`;
+    }).join("");
+  }
+
+  function renderAll() {
+    const r = resolve();
+    renderMatrix(); renderReq(r); renderTrace(r); renderKv(r); renderVerdict(r); renderMap();
+    document.getElementById("foot").innerHTML =
+      `Companion to <code>docs/providers/fsa/srcid-subtype-routing-design.md</code> §9. Provider: <b>${PROVIDERS[state.provider].name}</b> · ${esc(PROVIDERS[state.provider].note)}`;
+    document.querySelectorAll("#providers .chip").forEach(b=>b.setAttribute("aria-pressed", String(b.dataset.p===state.provider)));
+    document.querySelectorAll("#srcs .chip").forEach(b=>b.setAttribute("aria-pressed", String(+b.dataset.i===state.srcIdx)));
+    document.querySelectorAll("#modes .mode").forEach(b=>{
+      b.setAttribute("aria-pressed", String(b.dataset.mode===state.mode));
+      b.style.setProperty("--tc", `var(${PROVIDERS[state.provider].accent})`);
+      b.style.opacity = state.provider==="generic" ? .5 : 1;
+    });
+  }
+
+  function buildProviders() {
+    document.getElementById("providers").innerHTML = PORDER.map(k=>{
+      const p = PROVIDERS[k];
+      return `<button class="chip" data-p="${k}" style="--tc:var(${p.accent})" aria-pressed="${k===state.provider}"><span class="sw"></span>${p.name}<span class="desc">${p.example}</span></button>`;
+    }).join("");
+    document.querySelectorAll("#providers .chip").forEach(b=>b.addEventListener("click",()=>{ state.provider=b.dataset.p; state.srcIdx = state.provider==="fsa"?2:0; buildSrcs(); renderAll(); }));
+  }
+  function buildSrcs() {
+    const p = PROVIDERS[state.provider];
+    document.getElementById("srcs").innerHTML = p.srcs.map((s,i)=>
+      `<button class="chip" data-i="${i}" style="--tc:var(${s.cvar})" aria-pressed="${i===state.srcIdx}"><span class="sw"></span>${s.id||"(none)"}<span class="desc">${s.label}</span></button>`).join("");
+    document.querySelectorAll("#srcs .chip").forEach(b=>b.addEventListener("click",()=>{ state.srcIdx=+b.dataset.i; renderAll(); }));
+  }
+
+  document.querySelectorAll("#modes .mode").forEach(b=>b.addEventListener("click",()=>{ if(state.provider==="generic")return; state.mode=b.dataset.mode; renderAll(); }));
+  buildProviders(); buildSrcs(); renderAll();
+</script>
+</body>
+</html>
