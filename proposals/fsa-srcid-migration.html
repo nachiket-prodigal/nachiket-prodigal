@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>srcId Migration — one tenant, many subtypes</title>
+<style>
+  :root{
+    --bg:#ffffff; --bg2:#f6f8fa; --bg3:#eaeef2; --border:#d0d7de;
+    --fg:#1f2328; --muted:#59636e; --accent:#0969da; --green:#1a7f37;
+    --red:#cf222e; --amber:#9a6700; --purple:#8250df; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+    line-height:1.55;font-size:15px}
+  .wrap{max-width:1040px;margin:0 auto;padding:32px 20px 80px}
+  h1{font-size:30px;margin:0 0 6px;letter-spacing:-.5px}
+  h2{font-size:21px;margin:44px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+  .sub{color:var(--muted);margin:0 0 8px}
+  .pill{display:inline-block;font-size:12px;font-family:var(--mono);padding:2px 8px;border-radius:20px;
+    border:1px solid var(--border);background:var(--bg2);color:var(--muted);margin-right:6px}
+  code,.mono{font-family:var(--mono);font-size:.9em}
+  .lead{background:var(--bg2);border:1px solid var(--border);border-left:3px solid var(--accent);
+    border-radius:8px;padding:16px 18px;margin:20px 0}
+  .lead b{color:var(--fg)}
+  .principle{border-left-color:var(--purple)}
+
+  /* resolver */
+  .resolver{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:22px;margin:18px 0}
+  .controls{display:flex;flex-wrap:wrap;gap:18px;margin-bottom:22px}
+  .ctrl{display:flex;flex-direction:column;gap:6px;flex:1;min-width:190px}
+  .ctrl label{font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  select{background:var(--bg3);color:var(--fg);border:1px solid var(--border);border-radius:8px;
+    padding:10px 12px;font-size:15px;font-family:var(--mono);cursor:pointer}
+  select:focus{outline:none;border-color:var(--accent)}
+  .verdict{border-radius:10px;padding:16px 18px;font-size:15px;margin-bottom:18px;border:1px solid}
+  .verdict.ok{background:rgba(26,127,55,.10);border-color:rgba(26,127,55,.35)}
+  .verdict.bad{background:rgba(207,34,46,.10);border-color:rgba(207,34,46,.35)}
+  .verdict .tag{font-family:var(--mono);font-weight:700;font-size:13px;letter-spacing:.5px}
+  .verdict.ok .tag{color:var(--green)}
+  .verdict.bad .tag{color:var(--red)}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:720px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--bg3);border:1px solid var(--border);border-radius:10px;padding:14px 16px}
+  .card h4{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+  .row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px dashed var(--border);font-size:13.5px}
+  .row:last-child{border-bottom:0}
+  .row .k{color:var(--muted)}
+  .row .v{font-family:var(--mono);color:var(--fg);text-align:right}
+  .v.hl{color:var(--green)}
+  .v.old{color:var(--amber)}
+  .arrow{color:var(--muted);font-family:var(--mono)}
+  .flow{font-family:var(--mono);font-size:13px;background:var(--bg);border:1px solid var(--border);
+    border-radius:8px;padding:14px 16px;margin-top:14px;white-space:pre-wrap;color:var(--muted)}
+  .flow b{color:var(--accent)}
+
+  table{width:100%;border-collapse:collapse;margin:14px 0;font-size:13.5px;display:block;overflow-x:auto}
+  th,td{border:1px solid var(--border);padding:8px 11px;text-align:left;white-space:nowrap}
+  th{background:var(--bg3);color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.4px}
+  td .mono{color:var(--fg)}
+  .same{color:var(--green);font-weight:600}
+  .env-h{background:var(--bg2);font-family:var(--mono);color:var(--accent);font-size:13px}
+  .no{color:var(--green)} .open{color:var(--amber)}
+
+  .impact{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}
+  @media(max-width:720px){.impact{grid-template-columns:1fr}}
+  .icard{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px}
+  .icard h3{margin:0 0 8px;font-size:15px}
+  .icard .n{font-family:var(--mono);color:var(--purple);font-size:12px}
+  .icard ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px}
+  .icard li{margin:4px 0}
+  .icard code{color:var(--fg);background:var(--bg3);padding:1px 5px;border-radius:4px}
+  footer{margin-top:56px;color:var(--muted);font-size:13px;border-top:1px solid var(--border);padding-top:16px}
+  a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>srcId Migration</h1>
+  <p class="sub">One tenant, many subtypes — <code>srcId</code> selects behaviour, not tenant identity.</p>
+  <div>
+    <span class="pill">FSA · Klarna / Afterpay / Amex</span>
+    <span class="pill">precedent: TSI srcId</span>
+    <span class="pill">2026-07-21 · draft</span>
+  </div>
+
+  <div class="lead">
+    Today the subtype lives in the <b>tenant name</b> —
+    <code>fsa_use2_000</code>, <code>fsa_use2_0ap</code>, <code>fsa_use1_amx</code>,
+    <code>fsa_use1_aut</code>, <code>fsa_use2_amx</code> — overloading it with product,
+    region, subtype, database and environment. This moves the subtype onto <b>srcId</b>:
+    one tenant <code>fsa_use2_000</code> serves them all.
+  </div>
+  <div class="lead principle">
+    <b>Principle.</b> <code>srcId</code> selects <b>provider/adapter behaviour</b> — the code
+    path, credentials, API endpoint and target database. It does <b>not</b> change tenant
+    identity. Databases don't move: <code>(tenant, srcId)</code> resolves to the same physical
+    DB the record uses today ⇒ <b>zero data migration</b>.
+  </div>
+
+  <h2>Try it — the (env, tenant, srcId) resolver</h2>
+  <p class="sub">Pick an environment and a srcId. The resolver applies the per-environment
+    allowlist, then maps to config + database + adapter. Cross-environment srcIds are rejected.</p>
+
+  <div class="resolver">
+    <div class="controls">
+      <div class="ctrl">
+        <label for="env">Deployment (SERVER_CONFIG_ENV)</label>
+        <select id="env"></select>
+      </div>
+      <div class="ctrl">
+        <label for="tenant">Tenant (what the caller sends)</label>
+        <select id="tenant"></select>
+      </div>
+      <div class="ctrl">
+        <label for="src">srcId</label>
+        <select id="src"></select>
+      </div>
+    </div>
+
+    <div id="verdict" class="verdict ok"><span class="tag"></span> <span id="vtext"></span></div>
+
+    <div class="grid">
+      <div class="card">
+        <h4>Resolved route (new model)</h4>
+        <div class="row"><span class="k">adapter backend</span><span class="v hl" id="r-backend">—</span></div>
+        <div class="row"><span class="k">credentials</span><span class="v" id="r-creds">—</span></div>
+        <div class="row"><span class="k">API endpoint</span><span class="v" id="r-ep">—</span></div>
+        <div class="row"><span class="k">Repay merchant</span><span class="v" id="r-repay">—</span></div>
+        <div class="row"><span class="k">database</span><span class="v hl" id="r-db">—</span></div>
+        <div class="row"><span class="k">record stamped srcId</span><span class="v" id="r-src">—</span></div>
+      </div>
+      <div class="card">
+        <h4>Old world (what this replaces)</h4>
+        <div class="row"><span class="k">old tenant sent</span><span class="v old" id="o-tenant">—</span></div>
+        <div class="row"><span class="k">old db (TENANT_NAMES)</span><span class="v old" id="o-db">—</span></div>
+        <div class="row"><span class="k">db after migration</span><span class="v" id="o-moves">—</span></div>
+        <div class="row"><span class="k">APP_ENV</span><span class="v" id="o-appenv">—</span></div>
+        <div class="row"><span class="k">config file</span><span class="v" id="o-file">—</span></div>
+      </div>
+    </div>
+    <div class="flow" id="flow"></div>
+  </div>
+
+  <h2>The migration — new db = old db, everywhere</h2>
+  <p class="sub">New tenant is <code>fsa_use2_000</code> in every environment; srcId + env config
+    select creds, endpoint and database. Each new dbName equals the old one.</p>
+  <table>
+    <thead><tr><th>env</th><th>old tenant</th><th>old db</th><th>srcId</th><th>new tenant</th><th>new db</th><th>data moves?</th></tr></thead>
+    <tbody>
+      <tr class="env-h"><td colspan="7">prod · SERVER_CONFIG_ENV=prod · APP_ENV=prod</td></tr>
+      <tr><td>prod</td><td class="mono">fsa_use2_000</td><td class="mono">fsa_use2_000</td><td class="mono">klarna</td><td class="mono">fsa_use2_000</td><td class="mono">fsa_use2_000</td><td class="no">no</td></tr>
+      <tr><td>prod</td><td class="mono">fsa_use2_0ap</td><td class="mono">fsa_use2_000</td><td class="mono">afterpay</td><td class="mono">fsa_use2_000</td><td class="mono">fsa_use2_000</td><td class="no">no (shared)</td></tr>
+      <tr><td>prod</td><td class="mono">fsa</td><td class="mono">fsa</td><td class="mono">—</td><td class="mono">fsa <span style="color:var(--muted)">(unchanged)</span></td><td class="mono">fsa</td><td class="no">no</td></tr>
+      <tr class="env-h"><td colspan="7">fsa-amex · SERVER_CONFIG_ENV=fsa-amex · APP_ENV=prod</td></tr>
+      <tr><td>fsa-amex</td><td class="mono">fsa_use1_amx</td><td class="mono">fsa_use1_amx</td><td class="mono">amex</td><td class="mono">fsa_use2_000</td><td class="mono same">fsa_use1_amx</td><td class="no">no — keeps DB</td></tr>
+      <tr><td>fsa-amex</td><td class="mono">fsa_use1_aut</td><td class="mono">fsa_use1_aut</td><td class="mono">amex-aut <span class="open">(open)</span></td><td class="mono">fsa_use2_000</td><td class="mono same">fsa_use1_aut</td><td class="no">no — keeps DB</td></tr>
+      <tr class="env-h"><td colspan="7">fsa-amex-uat · SERVER_CONFIG_ENV=fsa-amex-uat · APP_ENV=fsa_uat · (new file, split from fsa-amex)</td></tr>
+      <tr><td>fsa-amex-uat</td><td class="mono">fsa_use2_amx</td><td class="mono">fsa_use2_amx</td><td class="mono">amex</td><td class="mono">fsa_use2_000</td><td class="mono same">fsa_use2_amx</td><td class="no">no</td></tr>
+      <tr class="env-h"><td colspan="7">reference — same pattern, other providers (TSI already merged)</td></tr>
+      <tr><td>prod</td><td class="mono">tsi_use2_sme</td><td class="mono">tsi_use2_000</td><td class="mono">sme</td><td class="mono">tsi_use2_000</td><td class="mono">tsi_use2_000</td><td class="no">no</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Five impact areas</h2>
+  <div class="impact">
+    <div class="icard">
+      <div class="n">01</div><h3>Request / response</h3>
+      <ul>
+        <li><code>srcId</code> already on payment DTOs; add it to consumer + payment-method DTOs (distinct Repay merchant per subtype ⇒ whole lifecycle is srcId-pinned).</li>
+        <li><code>tenantId</code> unchanged for callers: send <code>fsa_use2_000 + srcId=amex</code> instead of <code>fsa_use1_amx</code>.</li>
+        <li><code>srcId</code> persisted on every record so scheduler / webhook / status-sync can re-resolve.</li>
+        <li>Absent srcId ⇒ tenant default ⇒ today's behaviour.</li>
+      </ul>
+    </div>
+    <div class="icard">
+      <div class="n">02</div><h3>DB resolution</h3>
+      <ul>
+        <li><code>resolveDb(tenant, srcId)</code> replaces <code>TENANT_NAMES[tenant]</code> alone.</li>
+        <li>Returns the DB the record already uses ⇒ zero migration, no residency change.</li>
+        <li>The <code>amx</code>/<code>aut</code> database split survives — two srcIds, two DBs.</li>
+        <li><code>TENANT_NAMES</code> stays as the srcId-less fallback.</li>
+      </ul>
+    </div>
+    <div class="icard">
+      <div class="n">03</div><h3>Config file changes</h3>
+      <ul>
+        <li>Provider block gains <code>subtypes</code> (keyed by srcId) + <code>defaultSrcId</code>; each carries <code>database</code>, creds, endpoints.</li>
+        <li>The subtypes key <i>is</i> the backend ⇒ drop <code>apiBackend</code>.</li>
+        <li><code>extractConfigValues</code> needs no change; add <code>subtypes</code> to the schema.</li>
+        <li>Legacy flat config = one implicit subtype ⇒ every other tenant untouched.</li>
+      </ul>
+    </div>
+    <div class="icard">
+      <div class="n">04</div><h3>Config separation (envs)</h3>
+      <ul>
+        <li>Three deployments, own cluster/redis each: prod, fsa-amex, fsa-amex-uat.</li>
+        <li>Split UAT into <code>server.config.fsa-amex-uat.json</code> so <code>fsa_use2_000+amex</code> resolves to the right DB per env.</li>
+        <li>Each env's subtypes list <i>is</i> its srcId allowlist.</li>
+        <li>Amex never reaches prod ⇒ no cross-region secret copy, no cutover.</li>
+      </ul>
+    </div>
+    <div class="icard">
+      <div class="n">05</div><h3>Code org — (provider, srcId) as an adapter type</h3>
+      <ul>
+        <li>One <code>resolveRoute(tenant, provider, srcId?)</code> → {adapter, db, config}; dispatch + persistence both consume it.</li>
+        <li>Factory pre-instantiates one <b>immutable</b> adapter per <code>(tenant, srcId)</code> — construction-time config invariant preserved.</li>
+        <li><code>mapSrcIdToFsaBackend</code> mirrors <code>mapSrcIdToPayerAddress</code>.</li>
+        <li>Collapsing FSA's 17 <code>apiBackend</code> branches into strategies = optional, separate cleanup.</li>
+      </ul>
+    </div>
+    <div class="icard" style="border-color:rgba(154,103,0,.4)">
+      <div class="n" style="color:var(--amber)">OPEN</div><h3>amex-aut</h3>
+      <ul>
+        <li><code>fsa_use1_aut</code> is byte-identical to <code>fsa_use1_amx</code> — same Amex merchant, same creds. Only its DB name differs (a separate database, PR #151).</li>
+        <li>No live data ⇒ <b>drop it</b>. Live data ⇒ <code>srcId=amex-aut</code>, a behavioural alias of <code>amex</code> pointing at <code>fsa_use1_aut</code>.</li>
+        <li>A data question, not a code question. Kept open.</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    Companion to <span class="mono">docs/providers/fsa/srcid-migration-proposal.md</span>.
+    Draft for review — assisted by Claude.
+  </footer>
+</div>
+
+<script>
+const ENVS = {
+  "prod":         { appEnv:"prod",    file:"server.config.prod.json",         srcIds:["klarna","afterpay"] },
+  "fsa-amex":     { appEnv:"prod",    file:"server.config.fsa-amex.json",     srcIds:["amex","amex-aut"] },
+  "fsa-amex-uat": { appEnv:"fsa_uat", file:"server.config.fsa-amex-uat.json", srcIds:["amex"] }
+};
+// route config keyed by env then srcId
+const ROUTES = {
+  "prod": {
+    "klarna":   { backend:"FSA (klarna)", creds:"FSA_*",          ep:"FSA_BASE_URL",          repay:"FSA_REPAY_*",          db:"fsa_use2_000", oldTenant:"fsa_use2_000", oldDb:"fsa_use2_000" },
+    "afterpay": { backend:"AFTERPAY",     creds:"FSA_AFTERPAY_*", ep:"FSA_AFTERPAY_BASE_URL", repay:"FSA_AFTERPAY_REPAY_*", db:"fsa_use2_000", oldTenant:"fsa_use2_0ap", oldDb:"fsa_use2_000" }
+  },
+  "fsa-amex": {
+    "amex":     { backend:"AMEX", creds:"FSA_AMEX_*", ep:"FSA_AMEX_BASE_URL", repay:"FSA_AMEX_REPAY_*", db:"fsa_use1_amx", oldTenant:"fsa_use1_amx", oldDb:"fsa_use1_amx" },
+    "amex-aut": { backend:"AMEX", creds:"FSA_AMEX_* (shared)", ep:"FSA_AMEX_BASE_URL", repay:"FSA_AMEX_REPAY_* (shared)", db:"fsa_use1_aut", oldTenant:"fsa_use1_aut", oldDb:"fsa_use1_aut", open:true }
+  },
+  "fsa-amex-uat": {
+    "amex":     { backend:"AMEX", creds:"FSA_AMEX_*_UAT", ep:"FSA_AMEX_BASE_URL (uat)", repay:"FSA_AMEX_REPAY_*_UAT", db:"fsa_use2_amx", oldTenant:"fsa_use2_amx", oldDb:"fsa_use2_amx" }
+  }
+};
+const ALL_SRC = ["klarna","afterpay","amex","amex-aut"];
+
+const $ = id => document.getElementById(id);
+const envSel = $("env"), tenSel = $("tenant"), srcSel = $("src");
+
+Object.keys(ENVS).forEach(e => envSel.add(new Option(e, e)));
+["fsa_use2_000","fsa"].forEach(t => tenSel.add(new Option(t, t)));
+ALL_SRC.forEach(s => srcSel.add(new Option(s, s)));
+
+function render(){
+  const env = envSel.value, tenant = tenSel.value, src = srcSel.value;
+  const meta = ENVS[env];
+  $("o-appenv").textContent = meta.appEnv;
+  $("o-file").textContent = meta.file;
+
+  const setRoute = (id,v,cls) => { const el=$(id); el.textContent=v; el.className="v"+(cls?" "+cls:""); };
+
+  // bare fsa: standalone, prod-only, distinct from fsa_use2_000, not part of srcId system
+  if (tenant === "fsa"){
+    const clear = () => { ["r-backend","r-creds","r-ep","r-repay","r-db","r-src"].forEach(id=>setRoute(id,"—"));
+      $("o-tenant").textContent="—"; $("o-db").textContent="—"; $("o-moves").textContent="—"; };
+    if (env !== "prod"){
+      verdict(false, `Standalone tenant <code>fsa</code> lives <b>only in the <span class="mono">prod</span> deployment</b> — it is not part of the <span class="mono">${env}</span> deployment. Request rejected.`);
+      clear();
+      flow(`request  tenantId=<b>fsa</b>   [${env} deployment]\n  → tenant "fsa" configured in ${env}?   <b>NO</b>  (prod-only)\n  → 4xx "tenant 'fsa' not served by this environment"`);
+      return;
+    }
+    verdict(true, "Standalone tenant <code>fsa</code> — <b>distinct from <code>fsa_use2_000</code></b> (different tenant, different database <code>fsa</code>). Unchanged by this migration; not part of the srcId system, and srcId does not apply. Open whether it ever joins.");
+    setRoute("r-backend","FSA (default)","hl"); setRoute("r-creds","FSA_*");
+    setRoute("r-ep","FSA_BASE_URL"); setRoute("r-repay","FSA_REPAY_*");
+    setRoute("r-db","fsa","hl"); setRoute("r-src","— (n/a)");
+    $("o-tenant").textContent="fsa"; $("o-db").textContent="fsa";
+    const om=$("o-moves"); om.textContent="unchanged"; om.className="v hl";
+    flow(`request  tenantId=<b>fsa</b>   [prod]   (srcId n/a)\n<b>fsa</b> is left exactly as-is — its own tenant, its own DB \`fsa\`,\ndistinct from <b>fsa_use2_000</b>. Nothing in this migration touches it.`);
+    return;
+  }
+
+  const allowed = meta.srcIds.includes(src);
+  if (!allowed){
+    verdict(false, `srcId <code>${src}</code> is <b>not served by the <span class="mono">${env}</span> deployment</b>. It serves { ${meta.srcIds.join(", ")} }. Request rejected — this is the per-environment allowlist doing its job.`);
+    ["r-backend","r-creds","r-ep","r-repay","r-db","r-src"].forEach(id=>setRoute(id,"—"));
+    $("o-tenant").textContent="—"; $("o-db").textContent="—"; $("o-moves").textContent="—";
+    flow(`request  tenantId=<b>fsa_use2_000</b>  srcId=<b>${src}</b>\nresolveRoute("fsa_use2_000","fsa","${src}")\n  → srcId allowed in ${env}?   <b>NO</b>\n  → 4xx "srcId '${src}' not served by this environment"`);
+    return;
+  }
+
+  const r = ROUTES[env][src];
+  verdict(true, `Served. <code>fsa_use2_000 + ${src}</code> resolves inside the <span class="mono">${env}</span> deployment${r.open?' — <span class="open">amex-aut is the one open item (separate database, see below)</span>':''}.`);
+  setRoute("r-backend", r.backend, "hl"); setRoute("r-creds", r.creds);
+  setRoute("r-ep", r.ep); setRoute("r-repay", r.repay);
+  setRoute("r-db", r.db, "hl"); setRoute("r-src", src);
+  $("o-tenant").textContent = r.oldTenant;
+  $("o-db").textContent = r.oldDb;
+  const moves = (r.db === r.oldDb);
+  const om = $("o-moves"); om.textContent = moves ? "same DB — no move" : "MOVED"; om.className = "v "+(moves?"hl":"old");
+  flow(`request  tenantId=<b>fsa_use2_000</b>  srcId=<b>${src}</b>\nresolveRoute("fsa_use2_000","fsa","${src}")\n  → srcId allowed in ${env}?   yes\n  → config    = subtypes.${src}   (${r.creds})\n  → database  = <b>${r.db}</b>   ${moves?'(= old db, zero migration)':''}\n  → adapter   = FSA instance bound to ${r.backend}\ncaller used to send: tenantId=<b>${r.oldTenant}</b>`);
+}
+function verdict(ok, html){
+  const v=$("verdict"); v.className="verdict "+(ok?"ok":"bad");
+  v.querySelector(".tag").textContent = ok?"✓ SERVED":"✗ REJECTED";
+  $("vtext").innerHTML = html;
+}
+function flow(html){ $("flow").innerHTML = html; }
+
+[envSel,tenSel,srcSel].forEach(el=>el.addEventListener("change",render));
+render();
+</script>
+</body>
+</html>
