@@ -71,6 +71,13 @@
   .icard ul{margin:8px 0 0;padding-left:18px;color:var(--muted);font-size:13.5px}
   .icard li{margin:4px 0}
   .icard code{color:var(--fg);background:var(--bg3);padding:1px 5px;border-radius:4px}
+  .changes{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:6px 24px 16px;margin:18px 0}
+  .changes ol{margin:0;padding-left:22px}
+  .changes li{margin:12px 0;font-size:14px;line-height:1.5}
+  .changes li b{color:var(--fg)}
+  .changes code{background:var(--bg3);padding:1px 5px;border-radius:4px}
+  .changes .tagc{display:inline-block;font-family:var(--mono);font-size:11px;padding:1px 7px;border-radius:20px;
+    background:var(--bg3);color:var(--muted);border:1px solid var(--border);margin-left:6px;vertical-align:middle}
   footer{margin-top:56px;color:var(--muted);font-size:13px;border-top:1px solid var(--border);padding-top:16px}
   a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
 </style>
@@ -98,6 +105,32 @@
     path, credentials, API endpoint and target database. It does <b>not</b> change tenant
     identity. Databases don't move: <code>(tenant, srcId)</code> resolves to the same physical
     DB the record uses today ⇒ <b>zero data migration</b>.
+  </div>
+
+  <h2>Main changes</h2>
+  <div class="changes">
+    <ol>
+      <li><b>Merge the FSA tenants into one.</b> <code>fsa_use2_000</code>, <code>fsa_use2_0ap</code>,
+        <code>fsa_use1_amx</code> and <code>fsa_use2_amx</code> collapse into a single
+        <code>fsa_use2_000</code> override with a <code>subtypes</code> map keyed by srcId plus a
+        <code>defaultSrcId</code>; <code>apiBackend</code> is dropped. <span class="tagc">config</span></li>
+      <li><b>Split <code>server.config.fsa-amex.json</code>.</b> Extract UAT into a new
+        <code>server.config.fsa-amex-uat.json</code> so prod-amex (<code>fsa_use1_amx</code>) and UAT
+        (<code>fsa_use2_amx</code>) resolve to the right database and cluster once both become
+        <code>fsa_use2_000 + amex</code>. <span class="tagc">config</span></li>
+      <li><b>Resolve the DB from <code>(tenant, srcId)</code>.</b> <code>getTenantDb(tenant)</code> →
+        <code>resolveDb(tenant, srcId)</code>; new db = old db, so <b>zero data migration</b>.
+        <code>TENANT_NAMES</code> stays as the srcId-less fallback. <span class="tagc">db</span></li>
+      <li><b>Thread <code>srcId</code> through every operation.</b> Add it (shared
+        <code>SrcIdProperty</code>) to the consumer + payment-method DTOs, and persist it on every
+        record so scheduler / webhook / status-sync can re-resolve. <span class="tagc">api</span></li>
+      <li><b>One immutable adapter per <code>(tenant, srcId)</code>.</b> The factory builds them from
+        the subtypes config; <code>getAdapter(tenant, provider, srcId?)</code> selects one;
+        <code>mapSrcIdToFsaBackend</code> maps srcId → backend. <span class="tagc">factory</span></li>
+      <li><b>(Optional, separate PR) FSA adapter strategy refactor.</b> Collapse the 17
+        <code>apiBackend</code> branches into <code>klarna</code>/<code>afterpay</code>/<code>amex</code>
+        strategy files, thinning the 85&nbsp;KB adapter. <span class="tagc">cleanup</span></li>
+    </ol>
   </div>
 
   <h2>Try it — the (env, tenant, srcId) resolver</h2>
